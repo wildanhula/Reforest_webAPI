@@ -84,6 +84,10 @@ $router->group(['prefix' => 'api/artikel-image'], function () use ($router) {
 
 
 
+// Route untuk mendapatkan statistik
+$router->get('/stats', 'StatistikController@getStats');
+
+
 
 
 
