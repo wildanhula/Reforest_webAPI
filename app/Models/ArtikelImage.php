@@ -7,6 +7,7 @@ use App\Models\Artikel;
 
 class ArtikelImage extends Model
 {
+    
     protected $table = 'artikel_images';
 
     protected $fillable = [
@@ -27,5 +28,9 @@ class ArtikelImage extends Model
     public function artikel()
     {
         return $this->belongsTo(Artikel::class, 'artikel_id');
+    }
+      public function images()
+    {
+        return $this->hasMany(ArtikelImage::class, 'artikel_id');
     }
 }

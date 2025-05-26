@@ -33,4 +33,9 @@ class Pohonku extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+    public function images()
+    {
+        return $this->hasMany(PohonImage::class, 'pohon_id');
+        // ganti 'pohon_id' jika foreign key-nya berbeda
+    }
 }

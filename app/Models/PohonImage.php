@@ -24,8 +24,10 @@ class PohonImage extends Model
         return url('storage/images/' . $this->filename);
     }
 
-    public function pohonku()
+  
+      public function images()
     {
-        return $this->belongsTo(Pohonku::class, 'pohon_id');
+        return $this->hasMany(PohonImage::class, 'pohon_id');
+        // ganti 'pohon_id' jika foreign key-nya berbeda
     }
 }

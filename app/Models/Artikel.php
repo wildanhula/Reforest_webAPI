@@ -30,4 +30,8 @@ class Artikel extends Model
     {
         return $this->belongsTo(User::class, 'author');
     }
+    public function images()
+{
+    return $this->hasMany(ArtikelImage::class, 'artikel_id');
+}
 }

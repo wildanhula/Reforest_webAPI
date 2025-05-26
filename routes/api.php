@@ -3,6 +3,8 @@
 use App\Http\Controllers\AuthController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\imageUserController;
+use App\Http\Controllers\CrudArtikel;
+use App\Http\Controllers\CrudPohonku;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,12 +31,12 @@ $router->get('/', function () use ($router) {
 });
 
 // API Routes
-$router->group(['prefix' => 'api'], function () use ($router) {
-    $router->get('images', 'imageUserController@index');
-    $router->post('images', 'imageUserController@store');
-    $router->get('images/{id}', 'imageUserController@show');
-    $router->post('images/{id}', 'imageUserController@update'); // Using POST for file upload
-    $router->delete('images/{id}', 'imageUserController@destroy');
+$router->group(['prefix' => 'api/user'], function () use ($router) {
+    $router->get('/images/all', 'imageUserController@index');
+    $router->post('/images/post', 'imageUserController@store');
+    $router->get('/images/get/{id}', 'imageUserController@show');
+    $router->post('/images/post/{id}', 'imageUserController@update'); // Using POST for file upload
+    $router->delete('/images/delete/{id}', 'imageUserController@destroy');
 });
 
 // Serve uploaded images
@@ -47,45 +49,101 @@ $router->get('storage/images/{filename}', function ($filename) {
     
     return response()->file($path);
 });
-//artikel
-    $router->group(['prefix' => 'artikel'], function () use ($router) {
-        $router->post('/post', ['uses' => 'ArtikelController@PostArtikel']);
-        $router->get('/all', ['uses' => 'ArtikelController@GetAllArtikel']);
-        $router->get('/get/{id}', ['uses' => 'ArtikelController@GetArtikel']);
-        $router->put('/update/{id}', ['uses' => 'ArtikelController@UpdateArtikel']);
-        $router->delete('/delete/{id}', ['uses' => 'ArtikelController@DeleteArtikel']);
-    });
+//artikel yang baru
+$router->group(['prefix' => 'api/artikel'], function () use ($router) {
+    // Create a new artikel with image
+    $router->post('/post', 'CrudArtikel@store');
+
+    // Get all artikels with their images
+    $router->get('/all', 'CrudArtikel@index');
+
+    // Get a single artikel with its images
+    $router->get('/get/{id}', 'CrudArtikel@show');
+
+    // Update an artikel
+    $router->put('/update/{id}', 'CrudArtikel@update');
+
+    // Delete an artikel and its images
+    $router->delete('/delete/{id}', 'CrudArtikel@destroy');
+
+    // Add a new image to an existing artikel
+    $router->post('/artikels/{artikelId}/images', 'CrudArtikel@addImage');
+});
+    
+    
+    
 
 //artikel-img
-$router->group(['prefix' => 'artikel-images'], function () use ($router) {
-    $router->get('/', 'ArtikelImageController@index');       // Menampilkan semua gambar
-    $router->post('/', 'ArtikelImageController@store');      // Menyimpan gambar baru
-    $router->get('{id}', 'ArtikelImageController@show');     // Menampilkan detail gambar
-    $router->put('{id}', 'ArtikelImageController@update');   // Update gambar
-    $router->delete('{id}', 'ArtikelImageController@destroy'); // Hapus gambar
+$router->group(['prefix' => 'api/artikel-image'], function () use ($router) {
+    $router->get('/all', 'ArtikelImageController@index');       // Menampilkan semua gambar
+    $router->post('/post', 'ArtikelImageController@store');      // Menyimpan gambar baru
+    $router->get('/get/{id}', 'ArtikelImageController@show');     // Menampilkan detail gambar
+    $router->put('/update/{id}', 'ArtikelImageController@update');   // Update gambar
+    $router->delete('/delete/{id}', 'ArtikelImageController@destroy'); // Hapus gambar
 });
 
-//pohonku api
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//pohonku API DONE
 $router->group(['prefix' => 'api/pohonku'], function () use ($router) {
-    $router->post('/', 'PohonkuController@PostPohonku');
-    $router->get('/', 'PohonkuController@GetAllPohonku');
-    $router->get('/{id}', 'PohonkuController@GetPohonku');
-    $router->put('/{id}', 'PohonkuController@UpdatePohonku');
-    $router->delete('/{id}', 'PohonkuController@DeletePohonku');
+    $router->post('/post', 'CrudPohonku@PostPohonku');
+    $router->get('/all', 'CrudPohonku@index');
+    $router->get('/get/{id}', 'CrudPohonku@show');
+    $router->put('/update/{id}', 'CrudPohonku@update');
+    $router->delete('/delete/{id}', 'CrudPohonku@destroy');
+    $router->post('/pohonku_id/images', 'CrudPohonku@addImage');
 });
+
+
+
+
+
+
+
 //pohon img
 $router->group(['prefix' => 'api/pohon-image'], function () use ($router) {
-    $router->get('/', 'PohonImageController@index');
-    $router->post('/', 'PohonImageController@store');
-    $router->get('/{id}', 'PohonImageController@show');
-    $router->put('/{id}', 'PohonImageController@update');
-    $router->delete('/{id}', 'PohonImageController@destroy');
+    $router->get('/post', 'PohonImageController@index');
+    $router->post('/all', 'PohonImageController@store');
+    $router->get('/get/{id}', 'PohonImageController@show');
+    $router->put('/update/{id}', 'PohonImageController@update');
+    $router->delete('/delete{id}', 'PohonImageController@destroy');
 });
 //FAQ
 $router->group(['prefix' => 'api/faq'], function () use ($router) {
-    $router->post('/', ['uses' => 'FaQController@PostFaq']);
-    $router->get('/', ['uses' => 'FaQController@GetAllFaq']);
-    $router->get('/{id}', ['uses' => 'FaQController@GetFaq']);
-    $router->put('/{id}', ['uses' => 'FaQController@UpdateFaq']);
-    $router->delete('/{id}', ['uses' => 'FaQController@DeleteFaq']);
+    $router->post('/post', ['uses' => 'FaQController@PostFaq']);
+    $router->get('/all', ['uses' => 'FaQController@GetAllFaq']);
+    $router->get('/get/{id}', ['uses' => 'FaQController@GetFaq']);
+    $router->put('/update/{id}', ['uses' => 'FaQController@UpdateFaq']);
+    $router->delete('/delete/{id}', ['uses' => 'FaQController@DeleteFaq']);
 });
