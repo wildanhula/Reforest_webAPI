@@ -1,13 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\imageUserController;
-use App\Http\Controllers\CrudArtikel;
-use App\Http\Controllers\CrudPohonku;
-use App\Http\Controllers\PohonImageController;
-use App\Http\Controllers\FaQController;
-use App\Http\Controllers\StatistikController;
+use Laravel\Lumen\Routing\Router;
+
+/** @var Router $router */
 
 // Default Lumen version route
 $router->get('/', function () use ($router) {
@@ -15,13 +10,12 @@ $router->get('/', function () use ($router) {
 });
 
 // -------------------- Auth Routes --------------------
-
 $router->post('/auth/register', 'AuthController@register');
 $router->post('/auth/login', 'AuthController@login');
 
 $router->group(['middleware' => 'auth:api'], function () use ($router) {
     $router->get('/auth/me', 'AuthController@me');
-    $router->post('/auth/logout', 'AuthController@logout'); // opsional
+    $router->post('/auth/logout', 'AuthController@logout');
 });
 
 // -------------------- User Image Routes --------------------
@@ -53,14 +47,16 @@ $router->group(['prefix' => 'api/artikel'], function () use ($router) {
 });
 
 // -------------------- Pohonku Routes --------------------
-$router->group(['prefix' => 'api/pohonku'], function () use ($router) {
-    $router->post('/post', 'CrudPohonku@PostPohonku');
-    $router->get('/all', 'CrudPohonku@index');
-    $router->get('/get/{id}', 'CrudPohonku@show');
-    $router->put('/update/{id}', 'CrudPohonku@update');
-    $router->delete('/delete/{id}', 'CrudPohonku@destroy');
-    $router->post('/pohonku_id/images', 'CrudPohonku@addImage');
+$router->group(['prefix' => 'api/pohonku', 'middleware' => 'auth:api'], function () use ($router) {
+    $router->post('/post', 'CrudPohonku@PostPohonku');          // Tambah pohon + gambar
+    $router->get('/all', 'CrudPohonku@index');                  // Lihat semua pohon (admin & user filtered)
+    $router->get('/get/{id}', 'CrudPohonku@show');              // Detail pohon
+    $router->put('/update/{id}', 'CrudPohonku@update');         // Update pohon
+    $router->delete('/delete/{id}', 'CrudPohonku@destroy');     // Hapus pohon
+    $router->post('/images', 'CrudPohonku@store');              // Tambah gambar ke pohon (pohon_id + image)
+    $router->get('/my', 'CrudPohonku@getPohonByUser');          // Pohon milik user login
 });
+$router->get('/api/pohonku/map', 'CrudPohonku@getForMap');
 
 // -------------------- Pohon Image Routes --------------------
 $router->group(['prefix' => 'api/pohon-image'], function () use ($router) {
@@ -73,29 +69,27 @@ $router->group(['prefix' => 'api/pohon-image'], function () use ($router) {
 
 // -------------------- FAQ Routes --------------------
 $router->group(['prefix' => 'api/faq'], function () use ($router) {
-    $router->post('/post', ['uses' => 'FaQController@PostFaq']);
-    $router->get('/all', ['uses' => 'FaQController@GetAllFaq']);
-    $router->get('/get/{id}', ['uses' => 'FaQController@GetFaq']);
-    $router->put('/update/{id}', ['uses' => 'FaQController@UpdateFaq']);
-    $router->delete('/delete/{id}', ['uses' => 'FaQController@DeleteFaq']);
+    $router->post('/post', 'FaQController@PostFaq');
+    $router->get('/all', 'FaQController@GetAllFaq');
+    $router->get('/get/{id}', 'FaQController@GetFaq');
+    $router->put('/update/{id}', 'FaQController@UpdateFaq');
+    $router->delete('/delete/{id}', 'FaQController@DeleteFaq');
 });
 
 // -------------------- Statistik Route --------------------
 $router->get('/stats', 'StatistikController@getStats');
 
-$router->group(['prefix' => 'api/pohonku', 'middleware' => 'auth:api'], function () use ($router) {
-    $router->get('/my', 'CrudPohonku@getPohonByUser');
-});
-
+// -------------------- User Profile Routes --------------------
 $router->group(['prefix' => 'api/user', 'middleware' => 'auth:api'], function () use ($router) {
     $router->get('/me', 'UserController@getUserData');
     $router->post('/update', 'UserController@updateProfile');
     $router->delete('/delete', 'UserController@deleteUser');
 });
 
+// -------------------- Admin User Management --------------------
 $router->group(['prefix' => 'api/users', 'middleware' => 'auth:api'], function () use ($router) {
-    $router->get('/', 'UserManagementController@index');             // List semua user
-    $router->put('/update/{id}', 'UserManagementController@update');  // Update user berdasarkan id
-    $router->delete('/delete/{id}', 'UserManagementController@destroy'); // Hapus user berdasarkan id
+    $router->get('/', 'UserManagementController@index');
+    $router->put('/update/{id}', 'UserManagementController@update');
+    $router->delete('/delete/{id}', 'UserManagementController@destroy');
 });
 

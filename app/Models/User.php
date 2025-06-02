@@ -19,7 +19,7 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
         'username',
         'email',
         'password',
-        'role',
+        'role', // Menyimpan role user (user/admin)
         'jwt_token',
     ];
 

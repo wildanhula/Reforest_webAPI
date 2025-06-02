@@ -12,14 +12,8 @@ use Illuminate\Support\Facades\DB;
 
 class CrudPohonku extends Controller
 {
-    public function __construct()
-    {
-        // Bisa tambahkan middleware auth jika perlu
-        // $this->middleware('auth');
-    }
-
     // Create pohon + image
-    public function PostPohonku(Request $request)
+public function PostPohonku(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'namaPohon' => 'required|string',
@@ -27,7 +21,8 @@ class CrudPohonku extends Controller
             'tanggal_tanam' => 'required|date',
             'lat' => 'required|numeric',
             'long' => 'required|numeric',
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5048'
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5048',
+            'target_user_id' => 'nullable|exists:users,id',
         ]);
 
         if ($validator->fails()) {
@@ -39,22 +34,28 @@ class CrudPohonku extends Controller
         }
 
         try {
-            $user = $request->user(); // user login
+            $user = $request->user();
+            $assignedUserId = $user->id;
+
+            // Jika admin, bisa set target_user_id
+            if ($user->role === 'admin' && $request->filled('target_user_id')) {
+                $assignedUserId = $request->target_user_id;
+            }
+
             $pohon = Pohonku::create([
                 'namaPohon' => $request->namaPohon,
                 'jenis_pohon' => $request->jenis_pohon,
                 'tanggal_tanam' => $request->tanggal_tanam,
                 'lat' => $request->lat,
                 'long' => $request->long,
-                'user_id' => $user->id,
+                'user_id' => $assignedUserId,
+                'status' => 'aktif',
             ]);
 
-            // Upload image
             $image = $request->file('image');
             $filename = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
             $image->storeAs('public/images', $filename);
 
-            // Save image record
             $imageRecord = PohonImage::create([
                 'pohon_id' => $pohon->id,
                 'filename' => $filename,
@@ -80,14 +81,20 @@ class CrudPohonku extends Controller
         }
     }
 
-    // Get all pohon (optionally you can restrict to user login)
-    public function index()
+    // Get all pohon
+    public function index(Request $request)
     {
         try {
-            $pohons = Pohonku::with('images')->latest()->get();
+            $user = $request->user();
+            $query = Pohonku::with('images')->latest();
+
+            if ($user->role === 'user') {
+                $query->where('user_id', $user->id);
+            }
+
             return response()->json([
                 'success' => true,
-                'data' => $pohons
+                'data' => $query->get()
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -98,11 +105,51 @@ class CrudPohonku extends Controller
         }
     }
 
+    // New method: Get pohon data for map (minimal data, accessible for all logged-in users)
+public function getForMap(Request $request)
+{
+    try {
+        $pohons = Pohonku::with('user:id,username') // Ambil hanya kolom id dan username dari user
+            ->select('id', 'namaPohon', 'lat', 'long', 'user_id')
+            ->get()
+            ->map(function ($pohon) {
+                return [
+                    'id' => $pohon->id,
+                    'namaPohon' => $pohon->namaPohon,
+                    'lat' => $pohon->lat,
+                    'long' => $pohon->long,
+                    'username' => optional($pohon->user)->username,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $pohons
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Gagal mengambil data pohon untuk peta',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
     // Get pohon by ID
-    public function show($id)
+    public function show(Request $request, $id)
     {
         try {
             $pohon = Pohonku::with('images')->findOrFail($id);
+            $user = $request->user();
+
+            if ($user->role === 'user' && $pohon->user_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akses ditolak'
+                ], 403);
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => $pohon
@@ -110,7 +157,7 @@ class CrudPohonku extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Pohon not found'
+                'message' => 'Pohon tidak ditemukan'
             ], 404);
         } catch (\Exception $e) {
             return response()->json([
@@ -121,7 +168,7 @@ class CrudPohonku extends Controller
         }
     }
 
-    // Update pohon data + optional update gambar
+    // Update pohon
     public function update(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
@@ -143,29 +190,30 @@ class CrudPohonku extends Controller
 
         try {
             $pohon = Pohonku::findOrFail($id);
+            $user = $request->user();
 
-            // Update pohon fields
+            if ($user->role === 'user' && $pohon->user_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akses ditolak'
+                ], 403);
+            }
+
             $pohon->update($request->only([
                 'namaPohon', 'jenis_pohon', 'tanggal_tanam', 'lat', 'long'
             ]));
 
-            // If new image uploaded, replace old image(s)
             if ($request->hasFile('image')) {
-                // Delete old images from storage and DB
                 $oldImages = PohonImage::where('pohon_id', $pohon->id)->get();
                 foreach ($oldImages as $oldImage) {
-                    if (Storage::exists('public/images/' . $oldImage->filename)) {
-                        Storage::delete('public/images/' . $oldImage->filename);
-                    }
+                    Storage::delete('public/images/' . $oldImage->filename);
                     $oldImage->delete();
                 }
 
-                // Upload new image
                 $image = $request->file('image');
                 $filename = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
                 $image->storeAs('public/images', $filename);
 
-                // Save new image record
                 PohonImage::create([
                     'pohon_id' => $pohon->id,
                     'filename' => $filename,
@@ -175,18 +223,17 @@ class CrudPohonku extends Controller
                 ]);
             }
 
-            $pohon->refresh();
-            $pohon->load('images');
+            $pohon->refresh()->load('images');
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pohon updated successfully',
+                'message' => 'Pohon berhasil diupdate',
                 'data' => $pohon
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Pohon not found'
+                'message' => 'Pohon tidak ditemukan'
             ], 404);
         } catch (\Exception $e) {
             return response()->json([
@@ -197,19 +244,25 @@ class CrudPohonku extends Controller
         }
     }
 
-    // Delete pohon + all images
-    public function destroy($id)
+    // Delete pohon + gambar
+    public function destroy(Request $request, $id)
     {
         try {
-            DB::beginTransaction();
-
+            $user = $request->user();
             $pohon = Pohonku::findOrFail($id);
+
+            if ($user->role === 'user' && $pohon->user_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akses ditolak'
+                ], 403);
+            }
+
+            DB::beginTransaction();
 
             $images = PohonImage::where('pohon_id', $pohon->id)->get();
             foreach ($images as $image) {
-                if (Storage::exists('public/images/' . $image->filename)) {
-                    Storage::delete('public/images/' . $image->filename);
-                }
+                Storage::delete('public/images/' . $image->filename);
                 $image->delete();
             }
 
@@ -219,7 +272,7 @@ class CrudPohonku extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pohon dan semua gambar berhasil dihapus'
+                'message' => 'Pohon dan gambar berhasil dihapus'
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             DB::rollBack();
@@ -231,13 +284,13 @@ class CrudPohonku extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat menghapus pohon',
+                'message' => 'Gagal menghapus pohon',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
-    // Upload tambahan gambar ke pohon (post /api/pohonku/images)
+    // Tambah gambar ke pohon
     public function store(Request $request)
     {
         $this->validate($request, [
@@ -246,12 +299,22 @@ class CrudPohonku extends Controller
         ]);
 
         try {
+            $pohon = Pohonku::findOrFail($request->pohon_id);
+            $user = $request->user();
+
+            if ($user->role === 'user' && $pohon->user_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akses ditolak'
+                ], 403);
+            }
+
             $image = $request->file('image');
             $filename = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
             $image->storeAs('public/images', $filename);
 
             $imageRecord = PohonImage::create([
-                'pohon_id' => $request->pohon_id,
+                'pohon_id' => $pohon->id,
                 'filename' => $filename,
                 'original_name' => $image->getClientOriginalName(),
                 'mime_type' => $image->getMimeType(),
@@ -260,25 +323,19 @@ class CrudPohonku extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Image uploaded successfully',
+                'message' => 'Gambar berhasil ditambahkan',
                 'data' => $imageRecord
             ], 201);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $e->errors()
-            ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error uploading image',
+                'message' => 'Gagal menambahkan gambar',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
-    // Ambil pohon milik user yang login
+    // Get pohon milik user yang login
     public function getPohonByUser(Request $request)
     {
         try {
@@ -296,7 +353,7 @@ class CrudPohonku extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error fetching pohon for user',
+                'message' => 'Gagal mengambil data pohon user',
                 'error' => $e->getMessage()
             ], 500);
         }
