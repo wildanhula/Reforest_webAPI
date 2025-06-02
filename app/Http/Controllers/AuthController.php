@@ -6,6 +6,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Tymon\JWTAuth\Exceptions\JWTException;
 
 class AuthController extends Controller
 {
@@ -18,7 +20,7 @@ class AuthController extends Controller
             'username' => 'required|string|unique:users|max:50',
             'email' => 'required|email|unique:users|max:100',
             'password' => 'required|string|min:8|confirmed',
-            'role' => 'sometimes|in:user,admin', // optional, default user bisa di-handle di model/controller
+            'role' => 'sometimes|in:user,admin',
         ]);
 
         if ($validator->fails()) {
@@ -44,82 +46,44 @@ class AuthController extends Controller
     }
 
     /**
-     * Login user and return user data.
+     * Login and generate JWT token
      */
     public function login(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|email',
-            'password' => 'required|string',
-        ]);
+        $credentials = $request->only('email', 'password');
 
-        if ($validator->fails()) {
+        try {
+            if (!$token = JWTAuth::attempt($credentials)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid credentials'
+                ], 401);
+            }
+        } catch (JWTException $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-    
-        $user = User::where('email', $request->email)->first();
-
-        if (!$user) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'User does not exist',
-            ], 404);
-        }
-    
-        if (!Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid credentials',
-            ], 401);
+                'message' => 'Could not create token'
+            ], 500);
         }
 
-        // Jika pakai JWT, generate token di sini dan simpan ke $user->jwt_token (optional)
-        // Contoh (gunakan package jwt-auth atau manual implementasi):
-        // $token = JWT::fromUser($user);
-        // $user->jwt_token = $token;
-        // $user->save();
+        $user = auth()->user();
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Successfully logged in',
-            'data' => [
-                'user' => $user,
-                // 'token' => $token, // uncomment jika menggunakan JWT
-            ]
+            'message' => 'Login successful',
+            'token' => $token,
+            'user' => $user
         ], 200);
     }
 
     /**
-     * Logout user (remove token).
+     * Get the authenticated user
      */
-    public function logout(Request $request)
+    public function me(Request $request)
     {
-        // Jika menggunakan JWT dan menyimpan token di DB, hapus token di sini:
-        // $user = $request->user();
-        // $user->jwt_token = null;
-        // $user->save();
-
         return response()->json([
             'status' => 'success',
-            'message' => 'Successfully logged out',
-        ]);
-    }
-
-    /**
-     * Get authenticated user.
-     */
-    public function user(Request $request)
-    {
-        // Jika pakai middleware auth:api, bisa langsung return user
-        return response()->json([
-            'status' => 'success',
-            'data' => [
-                'user' => $request->user(),
-            ],
+            'user' => auth()->user()
         ]);
     }
 }

@@ -9,16 +9,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Lumen\Auth\Authorizable;
+use Tymon\JWTAuth\Contracts\JWTSubject;
 
-class User extends Model implements AuthenticatableContract, AuthorizableContract
+class User extends Model implements AuthenticatableContract, AuthorizableContract, JWTSubject
 {
     use Authenticatable, Authorizable, HasFactory, SoftDeletes;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var string[]
-     */
     protected $fillable = [
         'username',
         'email',
@@ -27,23 +23,28 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
         'jwt_token',
     ];
 
-    /**
-     * The attributes that should be hidden for arrays and JSON output.
-     *
-     * @var string[]
-     */
     protected $hidden = [
         'password',
         'remember_token',
         'jwt_token',
     ];
 
-    /**
-     * The attributes that should be cast to native types.
-     *
-     * @var array<string, string>
-     */
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    public function getJWTCustomClaims()
+    {
+        return [];
+    }
+
+    public function userImage()
+    {
+        return $this->hasOne(UserImage::class, 'user_id');
+    }
 }

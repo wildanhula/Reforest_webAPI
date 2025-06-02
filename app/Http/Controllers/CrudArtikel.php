@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Lumen\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+
 class CrudArtikel extends Controller
 {
     public function __construct()
@@ -179,87 +180,40 @@ class CrudArtikel extends Controller
     }
 
     // Delete an artikel and its images
- public function destroy($id)
-{
-    try {
-        DB::beginTransaction();
-
-        $artikel = Artikel::findOrFail($id);
-
-        $images = ArtikelImage::where('artikel_id', $artikel->id)->get();
-        foreach ($images as $image) {
-            if (Storage::exists('public/images/' . $image->filename)) {
-                Storage::delete('public/images/' . $image->filename);
-            }
-            $image->delete();
-        }
-
-        $artikel->forceDelete(); // Gunakan forceDelete jika menggunakan SoftDeletes
-
-        DB::commit();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Artikel dan semua gambar berhasil dihapus'
-        ]);
-    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-        DB::rollBack();
-        return response()->json([
-            'success' => false,
-            'message' => 'Artikel tidak ditemukan'
-        ], 404);
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json([
-            'success' => false,
-            'message' => 'Terjadi kesalahan saat menghapus artikel',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-}
-
-    // Add a new image to an existing artikel
-    public function addImage(Request $request, $artikelId)
+    public function destroy($id)
     {
         try {
-            $this->validate($request, [
-                'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5048'
-            ]);
+            DB::beginTransaction();
 
-            $artikel = Artikel::findOrFail($artikelId);
+            $artikel = Artikel::findOrFail($id);
 
-            $image = $request->file('image');
-            $filename = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
-            $image->storeAs('public/images', $filename);
+            $images = ArtikelImage::where('artikel_id', $artikel->id)->get();
+            foreach ($images as $image) {
+                if (Storage::exists('public/images/' . $image->filename)) {
+                    Storage::delete('public/images/' . $image->filename);
+                }
+                $image->delete();
+            }
 
-            $imageRecord = ArtikelImage::create([
-                'artikel_id' => $artikel->id,
-                'filename' => $filename,
-                'original_name' => $image->getClientOriginalName(),
-                'mime_type' => $image->getMimeType(),
-                'file_size' => $image->getSize()
-            ]);
+            $artikel->forceDelete(); // Gunakan forceDelete jika menggunakan SoftDeletes
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Image uploaded successfully',
-                'data' => $imageRecord
-            ], 201);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $e->errors()
-            ], 422);
+                'message' => 'Artikel dan semua gambar berhasil dihapus'
+            ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Artikel not found'
+                'message' => 'Artikel tidak ditemukan'
             ], 404);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Error uploading image',
+                'message' => 'Terjadi kesalahan saat menghapus artikel',
                 'error' => $e->getMessage()
             ], 500);
         }

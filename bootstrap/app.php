@@ -26,6 +26,11 @@ $app = new Laravel\Lumen\Application(
 );
 
 $app->withFacades();
+$app->withFacades(true, [
+    Tymon\JWTAuth\Facades\JWTAuth::class => 'JWTAuth',
+    Tymon\JWTAuth\Facades\JWTFactory::class => 'JWTFactory',
+]);
+
 
 $app->withEloquent();
 
@@ -64,6 +69,8 @@ $app->singleton(
 $app->configure('app');
 $app->configure('database');
 $app->configure('filesystems');
+$app->configure('jwt');
+
 /*
 |--------------------------------------------------------------------------
 | Register Middleware
@@ -85,6 +92,7 @@ $app->middleware([
 
 $app->routeMiddleware([
     'auth' => App\Http\Middleware\Authenticate::class,
+    'auth.jwt' => Tymon\JWTAuth\Http\Middleware\Authenticate::class,
 ]);
 
 
@@ -103,6 +111,8 @@ $app->routeMiddleware([
 $app->register(App\Providers\AppServiceProvider::class);
 $app->register(App\Providers\AuthServiceProvider::class);
 $app->register(App\Providers\EventServiceProvider::class);
+$app->register(Tymon\JWTAuth\Providers\LumenServiceProvider::class);
+
 
 /*
 |--------------------------------------------------------------------------
@@ -120,5 +130,6 @@ $app->router->group([
 ], function ($router) {
     require __DIR__.'/../routes/api.php';
 });
+
 
 return $app;
