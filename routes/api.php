@@ -87,9 +87,12 @@ $router->group(['prefix' => 'api/user', 'middleware' => 'auth:api'], function ()
 });
 
 // -------------------- Admin User Management --------------------
-$router->group(['prefix' => 'api/users', 'middleware' => 'auth:api'], function () use ($router) {
-    $router->get('/', 'UserManagementController@index');
-    $router->put('/update/{id}', 'UserManagementController@update');
-    $router->delete('/delete/{id}', 'UserManagementController@destroy');
+$router->group(['prefix' => 'api/admin', 'middleware' => ['auth:api', 'admin']], function () use ($router) {
+    $router->get('/users', 'UserManagementController@index');            // GET all users
+    $router->get('/users/{id}', 'UserManagementController@show');        // GET one user
+    $router->post('/users', 'UserManagementController@store');           // POST add user
+    $router->put('/users/{id}', 'UserManagementController@update');      // PUT update user
+    $router->delete('/users/{id}', 'UserManagementController@destroy');  // DELETE user
 });
+
 

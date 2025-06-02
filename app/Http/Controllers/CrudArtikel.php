@@ -115,69 +115,82 @@ class CrudArtikel extends Controller
     }
 
     // Update an artikel
-    public function update(Request $request, $id)
-    {
-        try {
-            $this->validate($request, [
-                'title' => 'sometimes|string|max:255',
-                'isi' => 'sometimes|string',
-                'author' => 'sometimes|string',
-                'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:5048'
-            ]);
+public function update(Request $request, $id)
+{
+    try {
+        $this->validate($request, [
+            'title' => 'sometimes|string|max:255',
+            'isi' => 'sometimes|string',
+            'author' => 'sometimes|string',
+            'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:5048'
+        ]);
 
-            $artikel = Artikel::findOrFail($id);
-            $artikel->update($request->only(['title', 'isi', 'author']));
+        $artikel = Artikel::findOrFail($id);
 
-            if ($request->hasFile('image')) {
-                // Delete old images
-                $oldImages = ArtikelImage::where('artikel_id', $artikel->id)->get();
-                foreach ($oldImages as $oldImage) {
-                    Storage::delete('public/images/' . $oldImage->filename);
-                    $oldImage->delete();
-                }
+        // Manual update field agar bisa bypass mass-assignment
+        if ($request->has('title')) {
+            $artikel->title = $request->title;
+        }
+        if ($request->has('isi')) {
+            $artikel->isi = $request->isi;
+        }
+        if ($request->has('author')) {
+            $artikel->author = $request->author;
+        }
 
-                // Upload new image
-                $image = $request->file('image');
-                $filename = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
-                $image->storeAs('public/images', $filename);
+        $artikel->save();
 
-                // Create new image record
-                $imageRecord = ArtikelImage::create([
-                    'artikel_id' => $artikel->id,
-                    'filename' => $filename,
-                    'original_name' => $image->getClientOriginalName(),
-                    'mime_type' => $image->getMimeType(),
-                    'file_size' => $image->getSize()
-                ]);
+        if ($request->hasFile('image')) {
+            // Delete old images
+            $oldImages = ArtikelImage::where('artikel_id', $artikel->id)->get();
+            foreach ($oldImages as $oldImage) {
+                Storage::delete('public/images/' . $oldImage->filename);
+                $oldImage->delete();
             }
 
-            $artikel->refresh();
-            $artikel->load('images');
+            // Upload new image
+            $image = $request->file('image');
+            $filename = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
+            $image->storeAs('public/images', $filename);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Artikel updated successfully',
-                'data' => $artikel
+            // Create new image record
+            $imageRecord = ArtikelImage::create([
+                'artikel_id' => $artikel->id,
+                'filename' => $filename,
+                'original_name' => $image->getClientOriginalName(),
+                'mime_type' => $image->getMimeType(),
+                'file_size' => $image->getSize()
             ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $e->errors()
-            ], 422);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Artikel not found'
-            ], 404);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error updating artikel',
-                'error' => $e->getMessage()
-            ], 500);
         }
+
+        $artikel->refresh();
+        $artikel->load('images');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Artikel updated successfully',
+            'data' => $artikel
+        ]);
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Validation error',
+            'errors' => $e->errors()
+        ], 422);
+    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Artikel not found'
+        ], 404);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Error updating artikel',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
+
 
     // Delete an artikel and its images
     public function destroy($id)
