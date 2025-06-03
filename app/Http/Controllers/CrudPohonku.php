@@ -169,80 +169,89 @@ public function getForMap(Request $request)
     }
 
     // Update pohon
-    public function update(Request $request, $id)
-    {
-        $validator = Validator::make($request->all(), [
-            'namaPohon' => 'sometimes|string',
-            'jenis_pohon' => 'sometimes|string',
-            'tanggal_tanam' => 'sometimes|date',
-            'lat' => 'sometimes|numeric',
-            'long' => 'sometimes|numeric',
-            'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:5048'
+public function update(Request $request, $id)
+{
+    $validator = Validator::make($request->all(), [
+        'namaPohon' => 'sometimes|string',
+        'jenis_pohon' => 'sometimes|string',
+        'tanggal_tanam' => 'sometimes|date',
+        'lat' => 'sometimes|numeric',
+        'long' => 'sometimes|numeric',
+        'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:5048',
+        'target_user_id' => 'nullable|exists:users,id',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Validation error',
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    try {
+        $pohon = Pohonku::findOrFail($id);
+        $user = $request->user();
+
+        if ($user->role === 'user' && $pohon->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak'
+            ], 403);
+        }
+
+        $updateData = $request->only([
+            'namaPohon', 'jenis_pohon', 'tanggal_tanam', 'lat', 'long'
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors()
-            ], 422);
+        // Hanya admin yang boleh update user_id
+        if ($user->role === 'admin' && $request->filled('target_user_id')) {
+            $updateData['user_id'] = $request->target_user_id;
         }
 
-        try {
-            $pohon = Pohonku::findOrFail($id);
-            $user = $request->user();
+        $pohon->update($updateData);
 
-            if ($user->role === 'user' && $pohon->user_id !== $user->id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Akses ditolak'
-                ], 403);
+        if ($request->hasFile('image')) {
+            $oldImages = PohonImage::where('pohon_id', $pohon->id)->get();
+            foreach ($oldImages as $oldImage) {
+                Storage::delete('public/images/' . $oldImage->filename);
+                $oldImage->delete();
             }
 
-            $pohon->update($request->only([
-                'namaPohon', 'jenis_pohon', 'tanggal_tanam', 'lat', 'long'
-            ]));
+            $image = $request->file('image');
+            $filename = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
+            $image->storeAs('public/images', $filename);
 
-            if ($request->hasFile('image')) {
-                $oldImages = PohonImage::where('pohon_id', $pohon->id)->get();
-                foreach ($oldImages as $oldImage) {
-                    Storage::delete('public/images/' . $oldImage->filename);
-                    $oldImage->delete();
-                }
-
-                $image = $request->file('image');
-                $filename = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
-                $image->storeAs('public/images', $filename);
-
-                PohonImage::create([
-                    'pohon_id' => $pohon->id,
-                    'filename' => $filename,
-                    'original_name' => $image->getClientOriginalName(),
-                    'mime_type' => $image->getMimeType(),
-                    'file_size' => $image->getSize()
-                ]);
-            }
-
-            $pohon->refresh()->load('images');
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Pohon berhasil diupdate',
-                'data' => $pohon
+            PohonImage::create([
+                'pohon_id' => $pohon->id,
+                'filename' => $filename,
+                'original_name' => $image->getClientOriginalName(),
+                'mime_type' => $image->getMimeType(),
+                'file_size' => $image->getSize()
             ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Pohon tidak ditemukan'
-            ], 404);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error updating pohon',
-                'error' => $e->getMessage()
-            ], 500);
         }
+
+        $pohon->refresh()->load('images');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pohon berhasil diupdate',
+            'data' => $pohon
+        ]);
+    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Pohon tidak ditemukan'
+        ], 404);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Error updating pohon',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
+
 
     // Delete pohon + gambar
     public function destroy(Request $request, $id)
